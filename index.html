@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discussion circle form</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cosmic: { bright: '#d946ef', primary: '#a855f7', dim: 'rgba(168, 85, 247, 0.15)' },
+                        stark: { red: '#8B0000', dark: '#050a14', gold: '#F3D403' }
+                    },
+                    fontFamily: { hud: ['Orbitron', 'sans-serif'], data: ['Rajdhani', 'sans-serif'] },
+                    boxShadow: {
+                        'glow-purple': '0 0 10px rgba(168, 85, 247, 0.6), 0 0 25px rgba(217, 70, 239, 0.4)',
+                        'glow-red': '0 0 15px rgba(139, 0, 0, 0.6)',
+                    },
+                    animation: { 'scan': 'scanline 8s linear infinite', 'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* BASE & BACKGROUND */
+        body { background-color: #050a14; background-image: radial-gradient(circle at 50% 0%, rgba(88, 28, 135, 0.3) 0%, transparent 60%); color: #e9d5ff; overflow-x: hidden; }
+        .bg-grid { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; background-image: linear-gradient(rgba(168, 85, 247, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(168, 85, 247, 0.05) 1px, transparent 1px); background-size: 40px 40px; mask-image: radial-gradient(circle at center, black 40%, transparent 90%); }
+        .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 6px; background: linear-gradient(to right, transparent, #d946ef, transparent); opacity: 0.4; animation: scanline 6s linear infinite; z-index: -1; box-shadow: 0 0 15px rgba(217, 70, 239, 0.5); }
+        @keyframes scanline { 0% { transform: translateY(-100vh); } 100% { transform: translateY(100vh); } }
+        
+        /* UI ELEMENTS */
+        .tech-border { position: relative; }
+        .tech-border::before, .tech-border::after { content: ''; position: absolute; width: 20px; height: 20px; border: 2px solid #a855f7; transition: all 0.3s ease; pointer-events: none; }
+        .tech-border::before { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .tech-border::after { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+        .tech-border:hover::before, .tech-border:hover::after { width: 100%; height: 100%; opacity: 0.8; box-shadow: 0 0 20px #d946ef, inset 0 0 10px rgba(168, 85, 247, 0.5); }
+        .glass-panel { background: rgba(15, 5, 25, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(168, 85, 247, 0.3); box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        
+        /* FULLSCREEN OVERLAY - Allow Scrolling on Mobile */
+        .fullscreen-overlay { 
+            position: fixed; inset: 0; z-index: 9999; 
+            background: #050a14; 
+            display: flex; flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            overflow-y: auto; 
+            transition: opacity 0.8s ease-out, visibility 0.8s; 
+            padding: 1rem;
+        }
+        
+        /* Cursor */
+        .cursor { display: inline-block; width: 10px; height: 1.2em; background-color: #d946ef; vertical-align: bottom; animation: blink 1s step-end infinite; margin-left: 4px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="font-data antialiased min-h-screen flex flex-col items-center">
+
+    <div id="intro-overlay" class="fullscreen-overlay">
+        
+        <div id="btn-choice-container" class="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+            <div class="w-16 h-16 border-2 border-cosmic-primary rounded-full flex items-center justify-center mb-8 shadow-[0_0_20px_#a855f7] animate-pulse">
+                <span class="font-hud text-3xl font-bold text-cosmic-primary pt-1">A</span>
+            </div>
+            <p class="text-xs text-cosmic-primary uppercase tracking-widest mb-6 font-hud">INITIALIZE AUDIO PROTOCOLS?</p>
+            <div class="flex gap-4">
+                <button id="btn-yes" class="animate-pulse px-8 py-3 bg-cosmic-dim border-2 border-cosmic-primary text-cosmic-primary font-hud tracking-[0.1em] text-sm uppercase hover:bg-cosmic-primary hover:text-white transition-all duration-300 shadow-[0_0_15px_#a855f7]">
+                    ACTIVATE
+                </button>
+                <button id="btn-no" class="px-8 py-3 bg-transparent border-2 border-gray-600 text-gray-400 font-hud tracking-[0.1em] text-sm uppercase hover:border-gray-400 hover:text-white transition-all duration-300">
+                    SILENT MODE
+                </button>
+            </div>
+        </div>
+
+        <div id="intro-content" class="w-full max-w-6xl min-h-min py-10 flex flex-col md:flex-row items-center justify-center gap-4 md:gap-16 opacity-0 transition-opacity duration-500">
+            
+            <div id="intro-hero-img" class="w-32 md:w-[400px] flex-shrink-0 transition-all duration-1000 ease-out transform -translate-x-[200%] opacity-0">
+                <img src="spiderman.png" alt="Spider-Man" class="w-full h-auto drop-shadow-[0_0_30px_rgba(255,0,0,0.4)]">
+            </div>
+
+            <div class="max-w-2xl text-center md:text-left space-y-4 md:space-y-8 relative z-10 w-full px-4">
+                <div class="min-h-[150px] md:min-h-[150px] bg-black/40 p-4 md:p-6 border-l-2 border-cosmic-primary/50 backdrop-blur-sm rounded-r-lg">
+                    <p id="typing-text-intro" class="font-hud text-lg md:text-2xl text-white leading-relaxed tracking-wide font-bold text-shadow-glow"></p>
+                    <span id="cursor-intro" class="cursor hidden"></span>
+                </div>
+
+                <div id="btn-enter-container" class="hidden pt-4 pb-8">
+                    <button id="btn-enter" class="group relative px-8 py-3 md:px-10 md:py-4 bg-transparent border-2 border-cosmic-primary text-cosmic-primary font-hud tracking-[0.2em] text-sm md:text-lg uppercase hover:bg-cosmic-primary hover:text-white transition-all duration-300 shadow-[0_0_15px_#a855f7]">
+                        STEP INTO YOUR LEGACY
+                        <div class="absolute inset-0 bg-cosmic-bright opacity-0 group-hover:opacity-20 blur-lg transition-opacity"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="success-overlay" class="fullscreen-overlay opacity-0 invisible" style="background: rgba(5, 10, 20, 0.95); backdrop-filter: blur(10px);">
+        
+        <div id="success-content" class="w-full max-w-6xl flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 py-10">
+            
+            <div id="success-hero-img" class="w-32 md:w-[400px] flex-shrink-0 transition-all duration-1000 ease-out transform -translate-x-[200%] opacity-0">
+                <img src="spiderman.png" alt="Spider-Man" class="w-full h-auto drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]">
+            </div>
+
+            <div class="max-w-3xl w-full text-center md:text-left space-y-8 border border-cosmic-primary/40 p-6 md:p-12 rounded-lg shadow-glow-purple bg-black/60 backdrop-blur-md relative z-10 mx-4">
+                
+                <h2 class="font-hud text-3xl md:text-6xl tracking-tighter uppercase animate-pulse leading-tight">
+                    <span class="text-stark-red drop-shadow-[0_0_15px_#8B0000]"></span> 
+                    <span class="text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]">LEGACY MAKER</span>
+                </h2>
+
+                <div class="h-[2px] w-full bg-gradient-to-r from-transparent via-cosmic-primary to-transparent opacity-70"></div>
+                
+                <div class="min-h-[120px]">
+                    <p id="typing-text-success" class="font-data text-xl md:text-3xl text-white leading-relaxed tracking-wide font-semibold whitespace-pre-line"></p>
+                    <span id="cursor-success" class="cursor"></span>
+                </div>
+                
+                <div class="pt-4 opacity-0 transition-opacity duration-1000" id="success-footer">
+                    <p class="text-xs text-cosmic-primary/80 tracking-[0.4em] uppercase font-hud">
+                        Terminal Session Terminated // 894-B
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-grid"></div>
+    <div class="scanline"></div>
+
+    <main class="relative z-10 w-full max-w-5xl px-0 md:px-4 py-8 md:py-12 flex flex-col gap-8 animate-pulse-slow">
+        <header class="text-center space-y-2 px-4">
+            <div class="inline-block relative">
+                <h1 class="font-hud text-5xl md:text-7xl tracking-tighter drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]">
+                    <span class="text-stark-red">DISCUSSION</span> <span class="text-white">CIRCLE</span>
+                </h1>
+                <div class="absolute -bottom-2 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-cosmic-primary to-transparent opacity-70"></div>
+            </div>
+            <p class="text-cosmic-bright tracking-[0.3em] text-sm uppercase font-bold opacity-90 drop-shadow-[0_0_5px_#a855f7]">
+                Secure Uplink // Cosmic Clearance
+            </p>
+        </header>
+
+        <div class="tech-border w-full shadow-glow-purple">
+            <div class="glass-panel w-full rounded-sm p-0 md:p-1 relative overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2 bg-black/40 border-b border-cosmic-dim">
+                    <div class="flex gap-2">
+                        <div class="w-3 h-3 rounded-full bg-stark-red animate-pulse"></div>
+                        <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-fuchsia-500"></div>
+                    </div>
+                    <div class="text-xs text-cosmic-primary tracking-widest font-bold">SYSTEM_READY // WAKANDA_NODE_3</div>
+                </div>
+
+                <div class="w-full relative border-b border-cosmic-dim">
+                    <img src="cover.jpg" alt="Cover" class="w-full h-32 md:h-64 object-cover opacity-80">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                </div>
+
+                <div class="p-0 md:p-8 bg-black/20 min-h-[500px] flex justify-center relative z-20">
+                    <div class="w-full">
+                         <div class="border border-dashed border-cosmic-primary/50 p-12 text-center rounded bg-cosmic-dim/20 shadow-[inset_0_0_20px_rgba(168,85,247,0.1)] m-4 md:m-0">
+                            <h2 class="text-2xl font-hud text-cosmic-bright mb-2 tracking-wider"></h2>
+                            <p class="text-purple-300">Paste your Tally Embed Code here.</p>
+                         </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 text-[10px] text-purple-400/70 px-4 py-2 border-t border-cosmic-dim font-mono uppercase">
+                    <div>CPU: 98% STABLE</div>
+                    <div class="text-center">Stark Industries © 2026</div>
+                    <div class="text-right text-cosmic-primary">Encryption: VIBRANIUM-LVL</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="fixed bottom-4 left-4 z-0 opacity-20 pointer-events-none hidden md:block mix-blend-screen">
+        <div class="w-32 h-32 border-4 border-cosmic-primary/50 rounded-full flex items-center justify-center">
+            <span class="font-hud text-5xl font-bold text-cosmic-primary/50">A</span>
+        </div>
+    </footer>
+
+    <div class="fixed bottom-6 right-6 z-50">
+        <audio id="bg-audio" loop><source src="background-music.mp3" type="audio/mpeg"></audio>
+        <audio id="intro-voice-audio"><source src="intro-voice.mp3" type="audio/mpeg"></audio>
+        <audio id="success-voice-audio"><source src="success-voice.mp3" type="audio/mpeg"></audio>
+
+        <div class="flex flex-col items-end gap-2">
+            <div class="flex gap-1 h-4 items-end mb-1 opacity-90" id="visualizer">
+                <div class="w-1 bg-cosmic-bright h-2 animate-pulse shadow-[0_0_5px_#d946ef]"></div>
+                <div class="w-1 bg-cosmic-primary h-4 animate-pulse shadow-[0_0_5px_#a855f7]" style="animation-delay: 0.1s"></div>
+                <div class="w-1 bg-cosmic-bright h-3 animate-pulse shadow-[0_0_5px_#d946ef]" style="animation-delay: 0.2s"></div>
+                <div class="w-1 bg-cosmic-primary h-5 animate-pulse shadow-[0_0_5px_#a855f7]" style="animation-delay: 0.3s"></div>
+            </div>
+            
+            <div class="glass-panel px-4 py-3 rounded-tl-xl border-r-4 border-stark-red flex items-center gap-4 transition-transform hover:translate-x-[-5px] shadow-glow-purple">
+                <button id="play-btn" class="w-10 h-10 flex items-center justify-center border border-cosmic-primary rounded hover:bg-cosmic-primary/30 transition-all group hover:shadow-[0_0_10px_#a855f7] hover:border-cosmic-bright">
+                    <svg id="icon-play" class="w-4 h-4 text-cosmic-primary group-hover:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="icon-pause" class="w-4 h-4 text-cosmic-bright group-hover:text-white hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                
+                <div class="flex flex-col justify-center">
+                     <button id="mute-toggle" class="text-[10px] font-hud text-cosmic-primary tracking-widest uppercase hover:text-white transition-colors border border-cosmic-dim px-2 py-1 rounded">
+                        SOUND: <span id="sound-status" class="text-cosmic-bright font-bold">OFF</span>
+                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // UPDATED TEXT FOR SPIDER-MAN
+            const introText = "Hey!\nEven a friendly neighborhood Spider Man can’t swing alone come join the Discussion Circle and be part of the team.\nYour powers of insight are needed!";
+            
+            // JOKE TEXT FOR OUTRO
+            const successText = "Getting to this stage takes effort,courage, and patience.Thank you for continuing to show up.";
+            // Elements
+            const introContent = document.getElementById('intro-content');
+            const introContainer = document.getElementById('typing-text-intro');
+            const introCursor = document.getElementById('cursor-intro');
+            const introHeroImg = document.getElementById('intro-hero-img');
+            
+            const btnChoiceContainer = document.getElementById('btn-choice-container');
+            const btnYes = document.getElementById('btn-yes');
+            const btnNo = document.getElementById('btn-no');
+            const btnEnter = document.getElementById('btn-enter');
+            const btnEnterContainer = document.getElementById('btn-enter-container');
+            
+            const music = document.getElementById('bg-audio');
+            const introVoice = document.getElementById('intro-voice-audio');
+            const successVoice = document.getElementById('success-voice-audio');
+            const allAudio = [music, introVoice, successVoice];
+            
+            const playBtn = document.getElementById('play-btn');
+            const muteToggle = document.getElementById('mute-toggle');
+            const soundStatus = document.getElementById('sound-status');
+            const iconPlay = document.getElementById('icon-play');
+            const iconPause = document.getElementById('icon-pause');
+            const visualizer = document.getElementById('visualizer');
+
+            let isMuted = true;
+
+            // --- START SEQUENCE ---
+            function startSequence(enableSound) {
+                btnChoiceContainer.style.display = 'none';
+                introContent.classList.remove('opacity-0');
+                
+                // Slide in Intro Hero
+                setTimeout(() => {
+                    introHeroImg.classList.remove('-translate-x-[200%]', 'opacity-0');
+                }, 100);
+
+                if (enableSound) {
+                    isMuted = false;
+                    allAudio.forEach(audio => { audio.muted = false; });
+                    music.volume = 0.2; 
+                    
+                    introVoice.play().catch(e => console.log("Missing intro-voice.mp3"));
+                    music.play().then(() => updateUI(true)).catch(e => console.log("Missing background-music.mp3"));
+                } else {
+                    isMuted = true;
+                    allAudio.forEach(audio => { audio.muted = true; });
+                    music.play().then(() => updateUI(true)).catch(e => console.log("Autoplay blocked"));
+                }
+                
+                updateSoundText();
+
+                setTimeout(() => {
+                    introCursor.classList.remove('hidden');
+                    typeWriter(introText, introContainer, introCursor, () => {
+                        btnEnterContainer.classList.remove('hidden');
+                    });
+                }, 800);
+            }
+
+            btnYes.addEventListener('click', () => { startSequence(true); });
+            btnNo.addEventListener('click', () => { startSequence(false); });
+
+            btnEnter.addEventListener('click', () => {
+                const overlay = document.getElementById('intro-overlay');
+                overlay.style.opacity = '0';
+                setTimeout(() => overlay.style.display = 'none', 800);
+                
+                if (!isMuted) {
+                    let vol = music.volume;
+                    const fade = setInterval(() => {
+                        if (vol >= 0.5) clearInterval(fade);
+                        else {
+                            vol += 0.02;
+                            music.volume = Math.min(vol, 1.0);
+                        }
+                    }, 100);
+                }
+            });
+
+            function typeWriter(text, container, cursorEl, callback) {
+                let i = 0;
+                function type() {
+                    if (i < text.length) {
+                        container.innerHTML += text.charAt(i);
+                        i++;
+                        setTimeout(type, 35); 
+                    } else {
+                        cursorEl.style.display = 'none';
+                        if(callback) callback();
+                    }
+                }
+                type();
+            }
+
+            // --- SUCCESS LOGIC ---
+            window.addEventListener('message', (e) => {
+                if (!e.data) return;
+                let isSuccess = false;
+                if (typeof e.data === 'object' && (e.data.event === 'Tally.FormSubmitted' || e.data.name === 'FormSubmitted')) isSuccess = true;
+                if (typeof e.data === 'string' && (e.data.includes('Tally.FormSubmitted') || e.data.includes('FormSubmitted'))) isSuccess = true;
+
+                if (isSuccess) {
+                    const successOverlay = document.getElementById('success-overlay');
+                    const successContainer = document.getElementById('typing-text-success');
+                    const successCursor = document.getElementById('cursor-success');
+                    const successFooter = document.getElementById('success-footer');
+                    const successHeroImg = document.getElementById('success-hero-img');
+
+                    successOverlay.classList.remove('invisible', 'opacity-0');
+                    
+                    setTimeout(() => {
+                        successHeroImg.classList.remove('-translate-x-[200%]', 'opacity-0');
+                    }, 100);
+
+                    if (!isMuted) successVoice.play().catch(e => console.log("Missing success-voice.mp3"));
+                    
+                    setTimeout(() => {
+                        typeWriter(successText, successContainer, successCursor, () => {
+                             successFooter.classList.remove('opacity-0');
+                        });
+                    }, 800);
+                }
+            });
+
+            // --- AUDIO CONTROLS ---
+            playBtn.addEventListener('click', () => {
+                if (music.paused) { 
+                    music.play(); 
+                    updateUI(true); 
+                } else { 
+                    music.pause(); 
+                    updateUI(false); 
+                }
+            });
+
+            muteToggle.addEventListener('click', () => {
+                isMuted = !isMuted;
+                music.muted = isMuted;
+                introVoice.muted = isMuted;
+                successVoice.muted = isMuted;
+                updateSoundText();
+            });
+
+            function updateSoundText() {
+                if (isMuted) {
+                    soundStatus.innerText = "OFF";
+                    soundStatus.classList.replace('text-cosmic-bright', 'text-gray-500');
+                } else {
+                    soundStatus.innerText = "ON";
+                    soundStatus.classList.replace('text-gray-500', 'text-cosmic-bright');
+                }
+            }
+
+            function updateUI(isPlaying) {
+                if (isPlaying) { 
+                    iconPlay.classList.add('hidden'); 
+                    iconPause.classList.remove('hidden'); 
+                    visualizer.style.opacity = '1'; 
+                } else { 
+                    iconPlay.classList.remove('hidden'); 
+                    iconPause.classList.add('hidden'); 
+                    visualizer.style.opacity = '0.3'; 
+                }
+            }
+        });
+    </script>
+</body>
+</html>
